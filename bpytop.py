@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+#
+# wch: this is a modified version of https://github.com/aristocratos/bpytop, 
+# mostly try-except to avoid issues with no display available, 
+# hardcoded screen size two places 160 x 60
+#
 # pylint: disable=not-callable, no-member, unsubscriptable-object
 # indent = tab
 # tab-size = 4
@@ -463,7 +468,7 @@ class Config:
 	background_update: bool = True
 	custom_cpu_name: str = ""
 	disks_filter: str = ""
-	update_check: bool = True
+	update_check: bool = False
 	mem_graphs: bool = True
 	show_swap: bool = True
 	swap_disk: bool = True
@@ -684,7 +689,10 @@ class Term:
 		"""Update width, height and set resized flag if terminal has been resized"""
 		if Init.running: cls.resized = False; return
 		if cls.resized: cls.winch.set(); return
-		cls._w, cls._h = os.get_terminal_size()
+		try:
+			cls._w, cls._h = os.get_terminal_size()
+		except:
+			cls._w, cls._h = (160,60)
 		if (cls._w, cls._h) == (cls.width, cls.height) and cls.old_boxes == Box.boxes and not force: return
 		if force: Collector.collect_interrupt = True
 		if cls.old_boxes != Box.boxes:
@@ -739,14 +747,16 @@ class Term:
 	@staticmethod
 	def echo(on: bool):
 		"""Toggle input echo"""
-		(iflag, oflag, cflag, lflag, ispeed, ospeed, cc) = termios.tcgetattr(sys.stdin.fileno())
-		if on:
-			lflag |= termios.ECHO # type: ignore
-		else:
-			lflag &= ~termios.ECHO # type: ignore
-		new_attr = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
-		termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, new_attr)
-
+		try:
+			(iflag, oflag, cflag, lflag, ispeed, ospeed, cc) = termios.tcgetattr(sys.stdin.fileno())
+			if on:
+				lflag |= termios.ECHO # type: ignore
+			else:
+				lflag &= ~termios.ECHO # type: ignore
+			new_attr = [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
+			termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, new_attr)
+		except:
+			pass
 	@staticmethod
 	def title(text: str = "") -> str:
 		out: str = f'{os.environ.get("TERMINAL_TITLE", "")}'
@@ -792,10 +802,16 @@ class Raw(object):
 		self.stream = stream
 		self.fd = self.stream.fileno()
 	def __enter__(self):
-		self.original_stty = termios.tcgetattr(self.stream)
-		tty.setcbreak(self.stream)
+		try:
+			self.original_stty = termios.tcgetattr(self.stream)
+			tty.setcbreak(self.stream)
+		except:
+			pass
 	def __exit__(self, type, value, traceback):
-		termios.tcsetattr(self.stream, termios.TCSANOW, self.original_stty)
+		try:
+			termios.tcsetattr(self.stream, termios.TCSANOW, self.original_stty)
+		except:
+			pass
 
 class Nonblocking(object):
 	"""Set nonblocking mode for device"""
@@ -972,8 +988,8 @@ class Key:
 							pass
 						else:
 							if input_key.startswith("\033[<35;"):		#* Detected mouse move in mouse direct mode
-								cls.mouse_move.set()
-								cls.new.set()
+									cls.mouse_move.set()
+									cls.new.set()
 							elif input_key.startswith("\033[<64;"):		#* Detected mouse scroll up
 								clean_key = "mouse_scroll_up"
 							elif input_key.startswith("\033[<65;"):		#* Detected mouse scroll down
@@ -3197,9 +3213,9 @@ class CpuCollector(Collector):
 							except IndexError:
 								break
 			except Exception as e:
-				errlog.exception(f'{e}')
-				cls.got_sensors = False
-				CpuBox._calc_size()
+					errlog.exception(f'{e}')
+					cls.got_sensors = False
+					CpuBox._calc_size()
 
 		else:
 			try:
@@ -3235,9 +3251,9 @@ class CpuCollector(Collector):
 						cls.cpu_temp_high = 60
 						cls.cpu_temp_crit = 80
 			except Exception as e:
-				errlog.exception(f'{e}')
-				cls.got_sensors = False
-				CpuBox._calc_size()
+					errlog.exception(f'{e}')
+					cls.got_sensors = False
+					CpuBox._calc_size()
 			else:
 				if not cores:
 					cls.cpu_temp[0].append(temp)
@@ -3540,8 +3556,8 @@ class NetCollector(Collector):
 		if not cls.nics: cls.nics = [""]
 		cls.nic = cls.nics[cls.nic_i]
 		if cls.net_iface and cls.net_iface in cls.nics:
-			cls.nic = cls.net_iface
-			cls.nic_i = cls.nics.index(cls.nic)
+                        cls.nic = cls.net_iface
+                        cls.nic_i = cls.nics.index(cls.nic)
 
 
 	@classmethod
@@ -3894,7 +3910,7 @@ class ProcCollector(Collector):
 
 			if search and not found:
 				if cls.detailed and pid == cls.detailed_pid:
-					det_cpu = getinfo["cpu_percent"]
+						det_cpu = getinfo["cpu_percent"]
 				if "username" in getinfo and isinstance(getinfo["username"], float): getinfo["username"] = ""
 				if "cmdline" in getinfo and isinstance(getinfo["cmdline"], float): getinfo["cmdline"] = ""
 				for value in [ name, str(pid), getinfo.get("username", ""), " ".join(getinfo.get("cmdline", "")) ]:
@@ -4817,7 +4833,7 @@ class Menu:
 					elif key == "backspace" and len(input_val):
 						input_val = input_val[:-1]
 					elif key == "delete":
-						input_val = ""
+							input_val = ""
 					elif isinstance(getattr(CONFIG, selected), str) and len(key) == 1:
 						input_val += key
 					elif isinstance(getattr(CONFIG, selected), int) and key.isdigit():
@@ -5555,9 +5571,12 @@ THEME: Theme
 
 def main():
 	global THEME
-
-	Term.width = os.get_terminal_size().columns
-	Term.height = os.get_terminal_size().lines
+	try:
+		Term.width = os.get_terminal_size().columns
+		Term.height = os.get_terminal_size().lines
+	except OSError as e:
+		Term.width = 160
+		Term.height = 60
 
 	#? Init -------------------------------------------------------------------------------------->
 	if DEBUG: TimeIt.start("Init")
