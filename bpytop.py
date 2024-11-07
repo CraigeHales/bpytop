@@ -2,7 +2,7 @@
 #
 # wch: this is a modified version of https://github.com/aristocratos/bpytop, 
 # mostly try-except to avoid issues with no display available, 
-# hardcoded screen size two places 160 x 60
+# hardcoded screen size two places COLS160 x ROWS60
 #
 # pylint: disable=not-callable, no-member, unsubscriptable-object
 # indent = tab
@@ -67,6 +67,9 @@ args.add_argument("-b", "--boxes",		action="store",	dest="boxes", 	help = "which
 args.add_argument("-lc", "--low-color", action="store_true", 			help = "disable truecolor, converts 24-bit colors to 256-color")
 args.add_argument("-v", "--version",	action="store_true", 			help = "show version info and exit")
 args.add_argument("--debug",			action="store_true", 			help = "start with loglevel set to DEBUG overriding value set in config")
+args.add_argument("--rows", type=int, default=60, help = "number of rows on virtual screen (default: %(default)s rows)")
+args.add_argument("--cols", type=int, default=160, help = "number of columns on virtual screen (default: %(default)s columns)")
+args.add_argument("--freq", type=int, default=10, help = "number of columns on virtual screen (default: %(default)s columns)")
 stdargs = args.parse_args()
 
 if stdargs.version:
@@ -77,6 +80,9 @@ if stdargs.version:
 ARG_BOXES: str = stdargs.boxes
 LOW_COLOR: bool = stdargs.low_color
 DEBUG: bool = stdargs.debug
+ROWS60: int = stdargs.rows
+COLS160: int = stdargs.cols
+FREQSECONDS: int = stdargs.freq
 
 #? Variables ------------------------------------------------------------------------------------->
 
@@ -692,7 +698,7 @@ class Term:
 		try:
 			cls._w, cls._h = os.get_terminal_size()
 		except:
-			cls._w, cls._h = (160,60)
+			cls._w, cls._h = (COLS160,ROWS60)
 		if (cls._w, cls._h) == (cls.width, cls.height) and cls.old_boxes == Box.boxes and not force: return
 		if force: Collector.collect_interrupt = True
 		if cls.old_boxes != Box.boxes:
@@ -5575,8 +5581,11 @@ def main():
 		Term.width = os.get_terminal_size().columns
 		Term.height = os.get_terminal_size().lines
 	except OSError as e:
-		Term.width = 160
-		Term.height = 60
+		Term.width = COLS160
+		Term.height = ROWS60
+
+	CONFIG.update_ms = 1000 * FREQSECONDS
+	CONFIG.truecolor=True # wch not strictly required, but subtly wrong if not set
 
 	#? Init -------------------------------------------------------------------------------------->
 	if DEBUG: TimeIt.start("Init")
